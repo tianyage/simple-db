@@ -1,0 +1,3 @@
+/vendor/
+config/simple-db.php
+composer.lock
