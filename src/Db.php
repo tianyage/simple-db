@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tianyage\SimpleDb;
 
 use Exception;
 use PDO;
 use PDOException;
+use Throwable;
 
 class Db
 {
@@ -17,12 +20,17 @@ class Db
     /**
      * 私有构造方法
      *
-     * @throws Exception
+     * @throws Throwable
      */
     private function __construct()
     {
         // 连接服务器
-        $this->connect();
+        try {
+            $this->connect();
+        } catch (Throwable $e) {
+            echo $e->getMessage();
+            die;
+        }
     }
     
     /**
@@ -54,12 +62,7 @@ class Db
      */
     private function connect(): void
     {
-        try {
-            $config = self::getConfig();
-        } catch (Exception $e) {
-            echo $e->getMessage();
-            throw $e;
-        }
+        $config = self::getConfig();
         try {
             $this->db = new PDO(
                 "mysql:host={$config['hostname']};port={$config['hostport']};dbname={$config['database']}",
@@ -77,9 +80,8 @@ class Db
                 ]
             );
         } catch (PDOException $e) {
-            //错误提示
-            echo '链接数据库失败:' . $e->getMessage();
-            throw $e;
+            // 错误提示
+            throw new Exception('链接数据库失败:' . $e->getMessage());
         }
     }
     
@@ -210,10 +212,18 @@ class Db
      */
     private static function getConfig(string $name = '', array|string $default = ''): array|string
     {
-        $ds = DIRECTORY_SEPARATOR; // 目录分隔符 /或\
-        
-        $config = require_once dirname(__DIR__) . "{$ds}config{$ds}simple-db.php";
-        
+        static $config = null;
+        if (!$config) {
+            $lib_path    = realpath(dirname(__DIR__)) . DIRECTORY_SEPARATOR; // D:\WorkSpace\Git\qq-utils\vendor\tianyage\simple-db\
+            $root_path   = dirname($lib_path, 3) . DIRECTORY_SEPARATOR; // D:\WorkSpace\Git\qq-utils\
+            $config_path = "{$root_path}config" . DIRECTORY_SEPARATOR . "simple-db.php";
+            try {
+                $config = require_once $config_path;
+            } catch (Throwable $e) {
+                echo "文件打开失败：{$config_path}";
+                die;
+            }
+        }
         // 无参数时获取所有
         if (empty($name)) {
             return $config;
