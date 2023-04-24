@@ -2,6 +2,7 @@
 
 namespace Tianyage\SimpleDb;
 
+use Exception;
 use PDO;
 use PDOException;
 
@@ -15,6 +16,8 @@ class Db
     
     /**
      * 私有构造方法
+     *
+     * @throws Exception
      */
     private function __construct()
     {
@@ -45,10 +48,18 @@ class Db
     
     /**
      * 连接目标服务器
+     *
+     * @return void
+     * @throws Exception
      */
     private function connect(): void
     {
-        $config = self::getConfig();
+        try {
+            $config = self::getConfig();
+        } catch (Exception $e) {
+            echo $e->getMessage();
+            throw $e;
+        }
         try {
             $this->db = new PDO(
                 "mysql:host={$config['hostname']};port={$config['hostport']};dbname={$config['database']}",
@@ -195,11 +206,14 @@ class Db
      * @param array|string $default
      *
      * @return array|string
+     * @throws Exception
      */
     private static function getConfig(string $name = '', array|string $default = ''): array|string
     {
-        $ds     = DIRECTORY_SEPARATOR; // 目录分隔符 /或\
-        $config = require_once dirname(__DIR__) . "{$ds}config{$ds}simple-cache.php";
+        $ds = DIRECTORY_SEPARATOR; // 目录分隔符 /或\
+        
+        $config = require_once dirname(__DIR__) . "{$ds}config{$ds}simple-db.php";
+        
         // 无参数时获取所有
         if (empty($name)) {
             return $config;
