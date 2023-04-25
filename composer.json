@@ -1,20 +1,20 @@
 {
-    "name": "tianyage/simple-db",
-    "type": "library",
-    "require": {
-        "php": ">8.0",
-      "ext-pdo": "*"
-    },
-    "license": "MIT",
-    "autoload": {
-        "psr-4": {
-            "Tianyage\\SimpleDb\\": "src/"
-        }
-    },
-    "authors": [
-        {
-            "name": "tianyage",
-            "email": "454701103@qq.com"
-        }
-    ]
+  "name": "tianyage/simple-db",
+  "type": "library",
+  "require": {
+    "php": ">8.0",
+    "ext-pdo": "*"
+  },
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Tianyage\\SimpleDb\\": "src/"
+    }
+  },
+  "authors": [
+    {
+      "name": "tianyage",
+      "email": "454701103@qq.com"
+    }
+  ]
 }

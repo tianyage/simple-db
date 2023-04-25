@@ -1,0 +1,18 @@
+<?php
+
+return [
+    // 服务器地址
+    'hostname' => '',
+    // 数据库名
+    'database' => '',
+    // 用户名
+    'username' => '',
+    // 密码
+    'password' => '',
+    // 端口
+    'hostport' => 3306,
+    // 数据库编码
+    'charset'  => 'utf8mb4',
+    // 数据库表前缀
+    'prefix'   => '',
+];

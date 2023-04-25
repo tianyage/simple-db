@@ -218,7 +218,7 @@ class Db
             $root_path   = dirname($lib_path, 3) . DIRECTORY_SEPARATOR; // D:\WorkSpace\Git\qq-utils\
             $config_path = "{$root_path}config" . DIRECTORY_SEPARATOR . "simple-db.php";
             try {
-                $config = require_once $config_path;
+                $config = require $config_path;
             } catch (Throwable $e) {
                 echo "文件打开失败：{$config_path}";
                 die;
