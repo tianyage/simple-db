@@ -126,10 +126,12 @@ class Db
      * @param string $table
      * @param string $where
      * @param string $fields 需要返回的字段
+     * @param int    $limit
      *
      * @return mixed
+     * @throws Exception
      */
-    public function select(string $table, string $where, string $fields = '*'): mixed
+    public function select(string $table, string $where, string $fields = '*', int $limit = 0): mixed
     {
         $config = self::getConfig();
         //        if (count($fields) > 1) {
@@ -137,7 +139,10 @@ class Db
         //        } else {
         //            $columns = $fields[0];
         //        }
-        $sql  = "SELECT {$fields} FROM {$config['prefix']}{$table} WHERE {$where}";
+        $sql = "SELECT {$fields} FROM {$config['prefix']}{$table} WHERE {$where}";
+        if ($limit > 0) {
+            $sql .= " limit {$limit}";
+        }
         $stmt = $this->db->query($sql);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
