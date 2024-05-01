@@ -92,8 +92,9 @@ class Db
      * @param array  $data  k=>v数组  ['user'=>1]
      *
      * @return false|string
+     * @throws Exception
      */
-    public function insert(string $table, array $data)
+    public function insert(string $table, array $data): bool|string
     {
         $config       = self::getConfig();
         $columns      = array_keys($data);
@@ -111,6 +112,7 @@ class Db
      * @param string $where a=1 and b=2
      *
      * @return int 影响行数
+     * @throws Exception
      */
     public function delete(string $table, string $where): int
     {
@@ -127,11 +129,12 @@ class Db
      * @param string $where
      * @param string $fields 需要返回的字段
      * @param int    $limit
+     * @param string $order
      *
      * @return mixed
      * @throws Exception
      */
-    public function select(string $table, string $where, string $fields = '*', int $limit = 0): mixed
+    public function select(string $table, string $where, string $fields = '*', int $limit = 0, string $order = ''): mixed
     {
         $config = self::getConfig();
         //        if (count($fields) > 1) {
@@ -140,6 +143,9 @@ class Db
         //            $columns = $fields[0];
         //        }
         $sql = "SELECT {$fields} FROM {$config['prefix']}{$table} WHERE {$where}";
+        if ($order) {
+            $sql .= " order by {$order}";
+        }
         if ($limit > 0) {
             $sql .= " limit {$limit}";
         }
@@ -155,6 +161,7 @@ class Db
      * @param string $fields
      *
      * @return mixed
+     * @throws Exception
      */
     public function find(string $table, string $where, string $fields = '*'): mixed
     {
@@ -177,6 +184,7 @@ class Db
      * @param string $where
      *
      * @return int 影响行输
+     * @throws Exception
      */
     public function update(string $table, array $data, string $where): int
     {
