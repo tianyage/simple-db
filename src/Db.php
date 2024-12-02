@@ -7,6 +7,7 @@ namespace Tianyage\SimpleDb;
 use Exception;
 use PDO;
 use PDOException;
+use PDOStatement;
 use Throwable;
 
 class Db
@@ -15,7 +16,8 @@ class Db
     //PDO实例
     private PDO $db;
     //单例模式 本类对象引用
-    private static object $instance;
+    private static ?object $instance;
+    private static ?array  $config;
     
     /**
      * 私有构造方法
@@ -34,12 +36,65 @@ class Db
     }
     
     /**
-     * 私有克隆
+     * 防止克隆
      */
     private function __clone()
     {
     }
     
+    
+    /**
+     * 获取配置
+     *
+     * @param string       $name    配置项名
+     * @param array|string $default 设置一个没找到时的默认值
+     *
+     * @return array|string
+     * @throws Exception
+     */
+    private static function getConfig(string $name = '', array|string $default = ''): array|string
+    {
+        if (empty(self::$config)) {
+            $lib_path    = realpath(dirname(__DIR__)) . DIRECTORY_SEPARATOR; // D:\WorkSpace\Git\qq-utils\vendor\tianyage\simple-db\
+            $root_path   = dirname($lib_path, 3) . DIRECTORY_SEPARATOR; // D:\WorkSpace\Git\qq-utils\
+            $config_path = "{$root_path}config" . DIRECTORY_SEPARATOR . "simple-db.php";
+            
+            //            //todo 正式环境请注释下面代码
+            //            $config_path = "D:\\WorkSpace\Git\simple-db\config\simple-db.php";
+            
+            if (!file_exists($config_path)) {
+                throw new Exception("配置文件不存在: {$config_path}");
+            }
+            try {
+                self::$config = require $config_path;
+            } catch (Throwable $e) {
+                echo "{$config_path}文件打开失败：" . $e->getMessage();
+                die;
+            }
+            if (!is_array(self::$config)) {
+                throw new Exception("配置文件格式错误，期望返回数组: {$config_path}");
+            }
+        }
+        
+        // 如果未指定具体配置项，返回全部配置
+        if (empty($name)) {
+            return self::$config;
+        }
+        
+        // 判断是否获取多级配置
+        if (str_contains($name, '.')) {
+            $name = explode('.', $name); // 用.来分割多级配置项名
+            
+            // 如果.后没提供字符串，那就默认提供.前的所有配置项  例$name是[app.]那就获取app下的所有配置
+            if (!isset($config[$name[1]])) {
+                return $config[$name[0]] ?? [];
+            } else {
+                return $config[$name[0]][$name[1]] ?? $default;
+            }
+        } else {
+            return self::$config[$name] ?? $default;
+        }
+    }
     
     /**
      * 获得单例对象
@@ -75,6 +130,11 @@ class Db
                     //                    PDO::ATTR_EMULATE_PREPARES   => false,
                     //                    // 关闭结果集自动转换数据类型
                     //                    PDO::ATTR_STRINGIFY_FETCHES  => false,
+                    
+                    // 启用持久连接 以减少数据库连接的开销
+                    PDO::ATTR_PERSISTENT         => true,
+                    // 当发生错误时，PDO 将抛出一个异常（PDOException）
+                    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                     // 设置字符集
                     PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES ' . $config['charset'],
                 ]
@@ -84,6 +144,42 @@ class Db
             throw new Exception('链接数据库失败:' . $e->getMessage());
         }
     }
+    
+    /**
+     * 断线重连机制
+     *
+     * @throws Exception
+     */
+    private function reconnect(): void
+    {
+        try {
+            $this->connect();
+        } catch (Exception $e) {
+            throw new Exception('重连数据库失败: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * 查询方法，带自动重连
+     *
+     * @throws Exception
+     */
+    private function query(string $sql, array $params = []): PDOStatement
+    {
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt;
+        } catch (PDOException $e) {
+            // 判断数据连接超时
+            if (str_contains($e->getMessage(), 'server has gone away')) {
+                $this->reconnect();
+                return $this->query($sql, $params); // 重试
+            }
+            throw new Exception('SQL执行失败: ' . $e->getMessage());
+        }
+    }
+    
     
     /**
      * 增加数据
@@ -101,7 +197,7 @@ class Db
         $values       = array_values($data);
         $placeholders = str_repeat('?,', count($values) - 1) . '?';
         $sql          = "INSERT INTO {$config['prefix']}{$table} (" . implode(',', $columns) . ") VALUES ({$placeholders})";
-        $stmt         = $this->query($sql, $values);
+        $this->query($sql, $values);
         return $this->db->lastInsertId();
     }
     
@@ -131,10 +227,10 @@ class Db
      * @param int    $limit
      * @param string $order
      *
-     * @return mixed
+     * @return array|bool
      * @throws Exception
      */
-    public function select(string $table, string $where, string $fields = '*', int $limit = 0, string $order = ''): mixed
+    public function select(string $table, string $where, string $fields = '*', int $limit = 0, string $order = ''): array|bool
     {
         $config = self::getConfig();
         //        if (count($fields) > 1) {
@@ -201,65 +297,26 @@ class Db
         return $stmt->rowCount();
     }
     
-    
-    private function query($sql, $params = [])
-    {
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
-        return $stmt;
-    }
-    
-    public function exec($sql)
+    public function exec($sql): bool|int
     {
         return $this->db->exec($sql);
     }
     
     /**
-     * 获取配置
-     *
-     * @param string       $name
-     * @param array|string $default
-     *
-     * @return array|string
-     * @throws Exception
+     * 事务支持
      */
-    private static function getConfig(string $name = '', array|string $default = ''): array|string
+    public function beginTransaction(): void
     {
-        static $config = null;
-        if (!$config) {
-            $lib_path    = realpath(dirname(__DIR__)) . DIRECTORY_SEPARATOR; // D:\WorkSpace\Git\qq-utils\vendor\tianyage\simple-db\
-            $root_path   = dirname($lib_path, 3) . DIRECTORY_SEPARATOR; // D:\WorkSpace\Git\qq-utils\
-            $config_path = "{$root_path}config" . DIRECTORY_SEPARATOR . "simple-db.php";
-            try {
-                $config = require $config_path;
-            } catch (Throwable $e) {
-                echo "文件打开失败：{$config_path}";
-                die;
-            }
-        }
-        // 无参数时获取所有
-        if (empty($name)) {
-            return $config;
-        }
-        
-        if (!str_contains($name, '.')) {
-            return $config[$name] ?? [];
-        }
-        
-        $name    = explode('.', $name);
-        $name[0] = strtolower($name[0]);
-        //        $config  = self::$config;
-        
-        // 按.拆分成多维数组进行判断
-        foreach ($name as $val) {
-            if (isset($config[$val])) {
-                $config = $config[$val];
-            } else {
-                return $default;
-            }
-        }
-        
-        return $config;
+        $this->db->beginTransaction();
     }
     
+    public function commit(): void
+    {
+        $this->db->commit();
+    }
+    
+    public function rollBack(): void
+    {
+        $this->db->rollBack();
+    }
 }
