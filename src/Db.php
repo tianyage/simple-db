@@ -202,6 +202,57 @@ class Db
     }
     
     /**
+     * 批量插入数据
+     *
+     * @param string $table
+     * @param array  $data
+     * @param int    $ignoreDuplicate 是否忽略主键冲突，默认0  1：INSERT IGNORE INTO  2：ON DUPLICATE KEY UPDATE
+     *
+     * @return int 影响的行数（即插入的记录数，失败返回0）
+     * @throws Exception
+     */
+    public function insertBatch(string $table, array $data, int $ignoreDuplicate = 0): int
+    {
+        $config = self::getConfig();
+        
+        // 获取表字段名
+        $columns      = array_keys($data[0]);
+        $placeholders = str_repeat('?,', count($columns) - 1) . '?';
+        
+        // 构建批量插入的 SQL 语句
+        $sql = "INSERT INTO {$config['prefix']}{$table} (" . implode(',', $columns) . ") VALUES ";
+        
+        // 准备值的数组
+        $values = [];
+        foreach ($data as $row) {
+            $values = array_merge($values, array_values($row));
+        }
+        
+        // 为每一行生成插入的占位符
+        $sql .= str_repeat("($placeholders),", count($data) - 1) . "($placeholders)";
+        
+        // 根据是否忽略主键冲突，选择不同的插入策略
+        if ($ignoreDuplicate === 1) {
+            // 使用 INSERT IGNORE 语句忽略主键冲突
+            $sql = str_replace("INSERT INTO", "INSERT IGNORE INTO", $sql);
+        } elseif ($ignoreDuplicate === 2) {
+            // 使用 ON DUPLICATE KEY UPDATE，更新冲突的记录
+            $updateClause = [];
+            foreach ($columns as $column) {
+                $updateClause[] = "$column = VALUES($column)";
+            }
+            $sql .= " ON DUPLICATE KEY UPDATE " . implode(', ', $updateClause);
+        }
+        
+        // 执行查询
+        $stmt = $this->query($sql, $values);
+        
+        // 返回插入的条数
+        return $stmt->rowCount(); // 返回影响的行数，即插入的记录数
+    }
+    
+    
+    /**
      * 删除
      *
      * @param string $table 表名
